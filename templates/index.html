@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web OCR Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .chunk-text {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        #resultArea {
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Web OCR Tool</h1>
+        
+        <!-- URL Input Card -->
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Step 1: Enter URL</h5>
+                <div class="input-group mb-3">
+                    <input type="url" id="urlInput" class="form-control" placeholder="Enter webpage URL">
+                    <button class="btn btn-primary" id="processUrlBtn">
+                        <i class="fas fa-camera"></i> Capture & Extract
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2" id="loadingText">Processing...</p>
+        </div>
+
+        <!-- Extracted Text Card -->
+        <div class="card" id="extractedTextCard" style="display: none;">
+            <div class="card-body">
+                <h5 class="card-title">Step 2: Extracted Text</h5>
+                <div id="chunksContainer"></div>
+            </div>
+        </div>
+
+        <!-- Data Structuring Card -->
+        <div class="card" id="structuringCard" style="display: none;">
+            <div class="card-body">
+                <h5 class="card-title">Step 3: Structure Data</h5>
+                <div class="mb-3">
+                    <label for="pageDescription" class="form-label">What does this webpage contain?</label>
+                    <input type="text" class="form-control" id="pageDescription" 
+                           placeholder="e.g., product listings, financial data, news articles">
+                </div>
+                <div class="mb-3">
+                    <label for="expectedData" class="form-label">What kind of data structure do you expect?</label>
+                    <input type="text" class="form-control" id="expectedData" 
+                           placeholder="e.g., table with product names, prices, ratings">
+                </div>
+                <button class="btn btn-success" id="structureDataBtn">
+                    <i class="fas fa-magic"></i> Structure Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Card -->
+        <div class="card" id="resultsCard" style="display: none;">
+            <div class="card-body">
+                <h5 class="card-title">Structured Data</h5>
+                <div id="resultArea" class="chunk-text"></div>
+                <button class="btn btn-secondary mt-3" id="downloadCsvBtn">
+                    <i class="fas fa-download"></i> Download CSV
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('processUrlBtn').addEventListener('click', async () => {
+            const url = document.getElementById('urlInput').value;
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            // Show loading indicator
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('loadingText').textContent = 'Taking screenshot and extracting text...';
+
+            try {
+                const response = await fetch('/process_url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url }),
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    // Display chunks
+                    const chunksContainer = document.getElementById('chunksContainer');
+                    chunksContainer.innerHTML = '';
+                    data.data.forEach(chunk => {
+                        const chunkDiv = document.createElement('div');
+                        chunkDiv.className = 'chunk-text';
+                        chunkDiv.innerHTML = `<strong>Chunk ${chunk.chunk_num}:</strong><br>${chunk.raw_text}`;
+                        chunksContainer.appendChild(chunkDiv);
+                    });
+
+                    // Show extracted text and structuring cards
+                    document.getElementById('extractedTextCard').style.display = 'block';
+                    document.getElementById('structuringCard').style.display = 'block';
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error processing URL: ' + error);
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        });
+
+        document.getElementById('structureDataBtn').addEventListener('click', async () => {
+            const pageDescription = document.getElementById('pageDescription').value;
+            const expectedData = document.getElementById('expectedData').value;
+
+            if (!pageDescription || !expectedData) {
+                alert('Please fill in both fields');
+                return;
+            }
+
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('loadingText').textContent = 'Structuring data...';
+
+            try {
+                const response = await fetch('/structure_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        page_description: pageDescription,
+                        expected_data: expectedData
+                    }),
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('resultArea').textContent = data.data;
+                    document.getElementById('resultsCard').style.display = 'block';
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error structuring data: ' + error);
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        });
+
+        document.getElementById('downloadCsvBtn').addEventListener('click', () => {
+            const csvContent = document.getElementById('resultArea').textContent;
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'structured_data.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html> 
